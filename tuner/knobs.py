@@ -33,15 +33,15 @@ def knobs_target_make_dict(knobs_path: str, target_num: int) -> Tuple[dict,dict]
     AOF_datas, AOF_columns, AOF_rowlabels = [], [], []
     ISAOF = 0
     ISRDB = 1
-    for m in config_files:
+    for m in range(20000):
         flag = 0
         datas, columns = [], []
         knob_path: str = os.path.join(knobs_path, 'config'+str(m+1)+'.conf')
         f = open(knob_path, 'r')
         config_file: List[str] = f.readlines()
-        #knobs_list = config_file[62:]
+        knobs_list = config_file[62:]
         #TODO:: why whitespace in line 63
-        knobs_list = config_file[63:]
+        #knobs_list = config_file[63:]
         #knobs_list = config_file[config_file.index('\n')+1:]
         cnt = 1
 

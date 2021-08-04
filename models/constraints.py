@@ -3,15 +3,8 @@
 #
 # Copyright (c) 2017-18, Carnegie Mellon University Database Group
 #
-'''
-Created on Sep 8, 2016
-
-@author: dvanaken
-'''
 
 import numpy as np
-
-
 class ParamConstraintHelper(object):
 
     def __init__(self, scaler, encoder=None, binary_vars=None,

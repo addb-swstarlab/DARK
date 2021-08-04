@@ -15,12 +15,11 @@ import torch
 
 import utils
 
-from trainer import train
+from double_trainer import train
 from config import Config
 
 sys.path.append('../')
 from models.steps import (dataPreprocessing, metricSimplification, knobsRanking, prepareForTraining, set_model)
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type=int, default=1)
@@ -74,15 +73,14 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     logger.info("Done ranking knobs for workload {} (# ranked knobs: {}).\n\n"
                  "Ranked knobs: {}\n".format(opt.persistence, len(ranked_knobs), ranked_knobs))
 
-    top_k = opt.topk
-    """
-    top_k_knobs : dict()
-    """
+    top_k: dict = opt.topk
     top_k_knobs = utils.get_ranked_knob_data(ranked_knobs, knob_data, top_k)
     knob_save_path = utils.make_date_dir('./save_knobs')
     logger.info("Knob save path : {}".format(knob_save_path))
     logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
     np.save(os.path.join(knob_save_path,'knobs_{}.npy'.format(top_k)),np.array(top_k_knobs['columnlabels']))
+
+    #In double version
     aggregated_data = [aggregated_ops_data, aggregated_latency_data]
     target_external_data =[Ops_target_external_data, latency_target_external_data]
 
@@ -94,6 +92,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     best_loss = defaultdict(float)
     best_mae = defaultdict(float)
     columns=['Totals_Ops/sec','Totals_p99_Latency']
+
     for i in range(2):
         trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, aggregated_data[i], target_external_data[i],i)
         
@@ -123,45 +122,3 @@ if __name__ == '__main__':
     finally:
         logger.handlers.clear()
         logging.shutdown()
-
-    """
-    #### Recommendation
-    5. GA
-    6. 결과를 config로 만드는 방법
-    #### Clustering 기법들 비교
-    1. 중심값
-    2. 파라미터
-    #### Problem
-    현재는 한번에 두 개를 동시에 맞추는 모델임.
-    1. 각각의 Dense가 예측을 하게 함
-        -> 편차가 생김(계수를 부여)
-    2. 아예 모델을 2개 만드는 거임
-        -> EM간의 trade-off를 못해
-        -> 두 개의 config 추천이 나옴
-    """
-    
-    # ### RECOMMENDATION STAGE ###
-    # ##TODO: choose k like incremental 4, 8, 16, ...
-    # top_ks = range(4,13)
-    # best_recommend = -float('inf')
-    # best_topk = None
-    # best_conf_map = None
-    # for top_k in top_ks:        
-    #     logger.info("\n\n================ The number of TOP knobs ===============")
-    #     logger.info(top_k)
-
-    #     ranked_test_knob_data = utils.get_ranked_knob_data(ranked_knobs, test_knob_data, top_k)
-        
-    #     ## TODO: params(GP option) and will offer opt all
-    #     FIN,recommend,conf_map = configuration_recommendation(ranked_test_knob_data,test_external_data, logger, opt.gp, opt.db, opt.persistence)
-
-    #     if recommend > best_recommend and FIN:
-    #         best_recommend = recommend
-    #         best_topk = top_k
-    #         best_conf_map = conf_map
-    # logger.info("Best top_k")
-    # logger.info(best_topk)
-    # print(best_topk)
-    # utils.convert_dict_to_conf(best_conf_map, opt.persistence)
-
-    # print("END TRAIN")

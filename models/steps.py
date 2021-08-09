@@ -2,12 +2,12 @@ import os
 import json
 import logging
 import argparse
+from collections import defaultdict
 
 from typing import Tuple
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from models.cluster import GapStatistic, KMeansClusters, create_kselection_model, MeanShiftClustering, GMMClustering
 from models.factor_analysis import FactorAnalysis
@@ -34,44 +34,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tuple[dict, dict, dict, dict]:
-    target_DATA_PATH = "../data/redis_data/workload{}".format(target_num)
-    
-    knobs_path:str = os.path.join(DATA_PATH, "configs2")
-    if persistence == "RDB":
-        knob_data, _, target_knob_data, _ = knobs.load_knobs(knobs_path, target_num)
-    elif persistence == "AOF":
-        _, knob_data, target_knob_data, _ = knobs.load_knobs(knobs_path, target_num)
-
-    logger.info("Finish Load Knob Data")
-
-    internal_metric_datas = {}
-    external_metric_datas = {}
-    # len()-1 because of configs dir
-    # knob_data['rowlabels'] -> range(~)
-    for i in range(1,19):
-        if target_num == i:
-            target_external_data: dict = knobs.load_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}_1000.csv"),
-                                                labels = range(1+(i-1)*1000, 1001+(i-1)*1000),
-                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-        else:
-            internal_metric_data: dict  = knobs.load_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}_1000.csv'),
-                                                            labels = range(1+(i-1)*1000, 1001+(i-1)*1000))
-            
-            external_metric_data: dict  = knobs.load_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}_1000.csv'),
-                                                labels = range(1+(i-1)*1000, 1001+(i-1)*1000),
-                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-            internal_metric_datas[f'workload{i}'] = internal_metric_data['data']
-            external_metric_datas[f'workload{i}'] = external_metric_data['data']
-    
-    #for all train split
-    #external_metric_datas[f'workload{target_num}'] = target_external_data['data']
-
-    internal_metric_datas['columnlabels'] = internal_metric_data['columnlabels']
-    #internal_metric_datas['rowlabels'] = internal_metric_data['rowlabels']
-    internal_metric_datas['rowlabels'] = knob_data['rowlabels']
-    external_metric_datas['columnlabels'] = ['Totals_Ops/sec', 'Totals_p99_Latency']
-    logger.info("Finish Load Internal and External Metrics Data")
-
     """
     workload{2~18} = workload datas composed of different key(workload2, workload3, ...) [N of configs, N of columnlabels]
     columnlabels  = Internal Metric names
@@ -82,11 +44,6 @@ def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tup
         'columnlabels'=array(['IM_1', 'IM_2', ...]),
         'rowlabels'=array([1, 2, ..., 10000])}
     """
-
-    aggregated_IM_data: dict = knobs.aggregateMetrics(internal_metric_datas)
-    aggregated_EM_data: dict = knobs.aggregateMetrics(external_metric_datas)
-
-
     """
     data = concat((workload2,...,workload18)) length = 10000 * N of workload
     columnlabels  = same as internal_metric_datas's columnlabels
@@ -98,7 +55,46 @@ def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tup
         'rowlabels'=array([1, 2, ..., 10000])}
     
     """
-    return knob_data, aggregated_IM_data, aggregated_EM_data, target_external_data
+    target_DATA_PATH = "../data/redis_data/workload{}".format(target_num)
+    
+    knobs_path:str = os.path.join(DATA_PATH, "configs")
+
+    logger.info("Finish Load Knob Data")
+
+    internal_metric_datas = defaultdict(list)
+    external_metric_datas = {}
+    knob_datas = {}
+
+    for i in range(1,19):
+        if target_num == i:
+            target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
+                                                knobs_path = knobs_path,
+                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+            target_knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
+                                                knobs_path = knobs_path,)
+        else:
+            knob_data, internal_metric_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
+                                                            knobs_path = knobs_path,)
+            
+            external_metric_data: dict  = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}.csv'),
+                                                knobs_path = knobs_path,
+                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+            knob_datas[f'workload{i}'] = knob_data['data']
+            internal_metric_datas[f'workload{i}'] = internal_metric_data['data']
+            external_metric_datas[f'workload{i}'] = external_metric_data['data']
+            internal_metric_datas['rowlabels'].extend(knob_data['rowlabels'])
+    #for all train split
+    #external_metric_datas[f'workload{target_num}'] = target_external_data['data']
+    knob_datas['columnlabels'] = knob_data['columnlabels']
+    internal_metric_datas['columnlabels'] = internal_metric_data['columnlabels']
+    external_metric_datas['columnlabels'] = ['Totals_Ops/sec', 'Totals_p99_Latency']
+    logger.info("Finish Load Internal and External Metrics Data")
+
+    aggregated_IM_data: dict = knobs.aggregate_datas(internal_metric_datas)
+    aggregated_EM_data: dict = knobs.aggregate_datas(external_metric_datas)
+    aggregated_knob_data: dict = knobs.aggregate_datas(knob_datas)
+
+    return aggregated_knob_data, aggregated_IM_data, aggregated_EM_data, target_knob_data, target_external_data
 
 #Step 1
 def metricSimplification(metric_data: dict, logger: logging, args : argparse) -> list:
@@ -213,58 +209,41 @@ def knobsRanking(knob_data: dict, metric_data: dict, mode: str, logger: logging)
     return consolidated_knobs
 
 
-def prepareForTraining(opt, top_k_knobs, aggregated_EM_data, target_external_data):
+def prepareForTraining(opt, top_k_knobs, target_knobs, aggregated_EM_data, target_external_data):
     with open("../data/workloads_info.json",'r') as f:
         workload_info = json.load(f)
 
     workloads=np.array([])
-
-    # for workload in range(1,len(workload_info.keys())):
-    #     if workload != opt.target:
-    #         if len(workloads) == 0:
-    #             workloads = np.array(workload_info[str(workload)])
-    #         else:
-    #             workloads = np.vstack((workloads,np.array(workload_info[str(workload)])))
-    #     else:
-    #         target_workload = np.array(workload_info[str(workload)])
-
-    # top_k_knobs = pd.DataFrame(top_k_knobs['data'], columns = top_k_knobs['columnlabels'])
-    # aggregated_EM_data = pd.DataFrame(aggregated_EM_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-    # workloads = np.vstack((workloads,target_workload))
-    # workload_infos = pd.DataFrame(workloads, columns = workload_info['info'])
-    # top_k_knobs['tmp'] = 1
-    # workload_infos['tmp'] = 1
-    # knobWithworkload = pd.merge(top_k_knobs,workload_infos,on=['tmp'])
-    # knobWithworkload = knobWithworkload.drop('tmp',axis=1)
-
-    # X_train, X_val, y_train, y_val = train_test_split(knobWithworkload, aggregated_EM_data, test_size = 0.4, random_state=42)
-    # X_val, X_test, y_val, y_test = train_test_split(X_val, y_val, test_size = 0.5, random_state=42)
-
     target_workload = np.array([])
     for workload in range(1,len(workload_info.keys())):
+        count = 3000
         if workload != opt.target:
-            if len(workloads) == 0:
-                workloads = np.array(workload_info[str(workload)])
-            else:
+            while count:
+                if not len(workloads):
+                    workloads = np.array(workload_info[str(workload)])
+                    count-=1
                 workloads = np.vstack((workloads,np.array(workload_info[str(workload)])))
+                count-=1
         else:
-            target_workload = np.array(workload_info[str(workload)])
-    
+            while count:
+                if not len(target_workload):
+                    target_workload = np.array(workload_info[str(workload)])
+                    count-=1
+                target_workload = np.vstack((target_workload,np.array(workload_info[str(workload)])))
+                count-=1
+
     top_k_knobs = pd.DataFrame(top_k_knobs['data'], columns = top_k_knobs['columnlabels'])
+    target_knobs = pd.DataFrame(target_knobs['data'], columns = target_knobs['columnlabels'])
     aggregated_EM_data = pd.DataFrame(aggregated_EM_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
     workload_infos = pd.DataFrame(workloads,columns = workload_info['info'])
-    target_workload = pd.DataFrame([target_workload],columns= workload_info['info'])
+    target_workload = pd.DataFrame(target_workload,columns= workload_info['info'])
     target_external_data = pd.DataFrame(target_external_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
 
-    top_k_knobs['tmp'] = 1
-    workload_infos['tmp'] = 1
-    target_workload['tmp'] = 1
-    knobWithworkload = pd.merge(top_k_knobs,workload_infos,on=['tmp'])
-    knobWithworkload = knobWithworkload.drop('tmp',axis=1)
-    targetWorkload = pd.merge(top_k_knobs,target_workload,on=['tmp'])
-    targetWorkload = targetWorkload.drop('tmp',axis=1)
+    knob_with_workload = pd.concat([top_k_knobs,workload_infos],axis=1)
+    target_workload = pd.concat([target_knobs,target_workload], axis=1)
+    
 
-    X_train, X_val, y_train, y_val = train_test_split(knobWithworkload, aggregated_EM_data, test_size = 0.33, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_EM_data, test_size = 0.33, random_state=42)
 
     # scaler_X = RobustScaler().fit(X_train)
     # scaler_y = RobustScaler().fit(y_train)
@@ -283,7 +262,7 @@ def prepareForTraining(opt, top_k_knobs, aggregated_EM_data, target_external_dat
     # X_te = scaler_X.transform(X_test).astype(np.float32)
     # y_te = scaler_y.transform(y_test).astype(np.float32)        
 
-    X_te = scaler_X.transform(targetWorkload).astype(np.float32)
+    X_te = scaler_X.transform(target_workload).astype(np.float32)
     y_te = scaler_y.transform(target_external_data).astype(np.float32)    
 
     trainDataset = RedisDataset(X_tr, y_tr)

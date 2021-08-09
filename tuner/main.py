@@ -2,13 +2,11 @@
 """
 Train the model
 """
-from collections import defaultdict
 import os
 import sys
 import copy
 import logging
 import argparse
-from random import randint
 
 import numpy as np
 import torch
@@ -47,7 +45,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     logger.info("Target workload name is {}".format(opt.target))
 
-    knob_data, aggregated_IM_data, aggregated_EM_data, target_external_data = dataPreprocessing(opt.target, opt.persistence,logger)
+    knob_data, aggregated_IM_data, aggregated_EM_data, target_knob_data, target_external_data = dataPreprocessing(opt.target, opt.persistence,logger)
 
     logger.info("====================== Metrics_Simplification ====================\n")
     pruned_metrics = metricSimplification(aggregated_IM_data, logger, opt)
@@ -75,35 +73,32 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     top_k: dict = opt.topk
     top_k_knobs = utils.get_ranked_knob_data(ranked_knobs, knob_data, top_k)
+    target_knobs = utils.get_ranked_knob_data(ranked_knobs, target_knob_data, top_k)
     knob_save_path = utils.make_date_dir('./save_knobs')
     logger.info("Knob save path : {}".format(knob_save_path))
     logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
     np.save(os.path.join(knob_save_path,'knobs_{}.npy'.format(top_k)),np.array(top_k_knobs['columnlabels']))
 
-    model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, aggregated_EM_data, target_external_data)
+    model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, target_knobs, aggregated_EM_data, target_external_data)
     
     logger.info("====================== {} Pre-training Stage ====================\n".format(opt.model_mode))
 
     best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss, model_path = train(model, trainDataloader, valDataloader, testDataloader, optimizer, scaler_y, opt, logger)
-    if opt.model_mode in ['single', 'twice']:
-        logger.info("\n\n[Best Epoch {}] Best_th_Loss : {} Best_la_Loss : {} Best_th_MAE : {} Best_la_MAE : {}".format(best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss))
-    elif opt.model_mode == 'double':
-        for name in best_epoch.keys():
-            logger.info("\n\n[{} Best Epoch {}] Best_Loss : {} Best_MAE : {}".format(name, best_epoch[name], best_loss[name], best_mae[name]))
+    logger.info("\n\n[Best Epoch {}] Best_th_Loss : {} Best_la_Loss : {} Best_th_MAE : {} Best_la_MAE : {}".format(best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss))
     
-    config = Config(opt.persistence,opt.db,opt.cluster,opt.rki,opt.topk,opt.model_mode,opt.n_epochs,opt.lr)
+    config = Config(opt.persistence, opt.db, opt.cluster, opt.rki, opt.topk, opt.model_mode, opt.n_epochs, opt.lr)
     config.save_results(opt.target, best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss, model_path, log_dir)
 
     return config
 
 if __name__ == '__main__':
-    print("======================MAKE LOGGER====================")
-    logger, log_dir = utils.get_logger(os.path.join('./logs'))
     '''
         internal_metrics, external_metrics, knobs
         metric_data : internal metrics
         knobs_data : configuration knobs
     '''
+    print("======================MAKE LOGGER====================")
+    logger, log_dir = utils.get_logger(os.path.join('./logs'))
     try:
         main(opt, logger, log_dir)
     except:

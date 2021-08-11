@@ -152,24 +152,29 @@ def server_connection():
 
 def main():
     top_k_knobs = np.load(os.path.join('./save_knobs',args.path,f"knobs_{args.topk}.npy"))
+
     if args.model_mode == 'single':
         model = RedisSingleDNN(args.topk+5,2)
         model.load_state_dict(torch.load(os.path.join('./model_save',args.path,'model_{}.pt'.format(args.num))))
         fitness_function = sinlge_fitness_function
+
     if args.model_mode == 'twice':
         model = RedisTwiceDNN(args.topk+5,2)
         model.load_state_dict(torch.load(os.path.join('./model_save',args.path,'model_{}.pt'.format(args.num))))
         fitness_function = twice_fitness_function
+
     pruned_configs, external_data, default, scaler_X, scaler_y = prepareForGA(args,top_k_knobs)
-    temp_configs = pd.concat([pruned_configs,external_data],axis=1)
+    temp_configs = pd.concat([pruned_configs, external_data], axis=1)
     temp_configs = temp_configs.sort_values(["Totals_Ops/sec","Totals_p99_Latency"], ascending=[False,True])
     target = temp_configs[["Totals_Ops/sec","Totals_p99_Latency"]].values[0]
     configs = temp_configs.drop(columns=["Totals_Ops/sec","Totals_p99_Latency"])
+
     n_configs = top_k_knobs.shape[0]
     n_pool_half = args.n_pool//2
     mutation = int(n_configs*0.7)
     current_solution_pool = configs[:args.n_pool].values
     target = np.repeat([default], args.n_pool, axis = 0)
+
     for i in tqdm(range(args.n_generation)):
         scaled_pool = scaler_X.transform(current_solution_pool)
         predicts = fitness_function(scaled_pool, args, model)

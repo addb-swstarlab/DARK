@@ -14,7 +14,7 @@ from models.factor_analysis import FactorAnalysis
 from models.preprocessing import (get_shuffle_indices, consolidate_columnlabels)
 from models.redisDataset import RedisDataset
 from models.ranking import Ranking
-from models.dnn import RedisSingleDNN, RedisTwiceDNN
+from models.dnn import RedisSingleDNN
 
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 from sklearn.model_selection import train_test_split
@@ -33,12 +33,11 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tuple[dict, dict, dict, dict, dict]:
+def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tuple[dict, dict, dict, dict]:
     """
     workload{2~18} = workload datas composed of different key(workload2, workload3, ...) [N of configs, N of columnlabels]
     columnlabels  = Internal Metric names
     rowlabels = Index for Workload data
-
     internal_metric_datas = {
         'workload{2~18} except target(1)'=array([[1,2,3,...], [2,3,4,...], ...[]])
         'columnlabels'=array(['IM_1', 'IM_2', ...]),
@@ -48,7 +47,6 @@ def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tu
     data = concat((workload2,...,workload18)) length = 10000 * N of workload
     columnlabels  = same as internal_metric_datas's columnlabels
     rowlabels = same as internal_metric_datas's rowlabels
-
     aggregated_IM_data = {
         'data'=array([[1,2,3,...], [2,3,4,...], ...[]])
         'columnlabels'=array(['IM_1', 'IM_2', ...]),
@@ -58,45 +56,61 @@ def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tu
     target_DATA_PATH = "../data/redis_data/workload{}".format(target_num)
     
     knobs_path:str = os.path.join(DATA_PATH, "configs")
+    # if persistence == "RDB":
+    #     knob_data, _ = knobs.load_knobs(knobs_path)
+    # elif persistence == "AOF":
+    #     _, knob_data = knobs.load_knobs(knobs_path)
 
+    # logger.info("Finish Load Knob Data")
 
     internal_metric_datas = defaultdict(list)
-    external_metric_datas = {}
+    ops_metric_datas = {}
+    latency_metric_datas = {}
     knob_datas = {}
 
-    for i in range(1,19):
+    # len()-1 because of configs dir
+    for i in range(1,len(os.listdir(DATA_PATH))):
         if target_num == i:
-            target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
+            ops_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
                                                 knobs_path = knobs_path,
-                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+                                                metrics = ['Totals_Ops/sec'])
+            latency_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
+                                                knobs_path = knobs_path,
+                                                metrics = ['Totals_Ops/sec'])
             target_knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
                                                 knobs_path = knobs_path,)
         else:
             knob_data, internal_metric_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
                                                             knobs_path = knobs_path,)
             
-            external_metric_data: dict  = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}.csv'),
+            ops_metric_data: dict  = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}.csv'),
                                                 knobs_path = knobs_path,
-                                                metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-            knob_datas[f'workload{i}'] = knob_data['data']
+                                                metrics = ['Totals_Ops/sec'])
+            latency_metric_data: dict  = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}.csv'),
+                                                knobs_path = knobs_path,
+                                                metrics = ['Totals_p99_Latency'])
+            knob_datas[f'workload{i}'] = knob_data['data']    
             internal_metric_datas[f'workload{i}'] = internal_metric_data['data']
-            external_metric_datas[f'workload{i}'] = external_metric_data['data']
+            ops_metric_datas[f'workload{i}'] = ops_metric_data['data']
+            latency_metric_datas[f'workload{i}'] = latency_metric_data['data']
             internal_metric_datas['rowlabels'].extend(knob_data['rowlabels'])
-
     
     #for all train split
     #external_metric_datas[f'workload{target_num}'] = target_external_data['data']
     knob_datas['columnlabels'] = knob_data['columnlabels']
     internal_metric_datas['columnlabels'] = internal_metric_data['columnlabels']
-    external_metric_datas['columnlabels'] = ['Totals_Ops/sec', 'Totals_p99_Latency']
-    logger.info("Finish Load knob and Internal and External Metrics Data")
+    ops_metric_datas['columnlabels'] = ['Totals_Ops/sec']
+    latency_metric_datas['columnlabels'] = ['Totals_p99_Latency']
+    logger.info("Finish Load Internal and External Metrics Data")
 
-    aggregated_IM_data: dict = knobs.aggregate_datas(internal_metric_datas)
-    aggregated_EM_data: dict = knobs.aggregate_datas(external_metric_datas)
+
+    aggregated_IM_data: dict = knobs.aggregateMetrics(internal_metric_datas)
+    aggregated_ops_data: dict = knobs.aggregateMetrics(ops_metric_datas)
+    aggregated_latency_data: dict = knobs.aggregateMetrics(latency_metric_datas)
     aggregated_knob_data: dict = knobs.aggregate_datas(knob_datas)
 
-    return aggregated_knob_data, aggregated_IM_data, aggregated_EM_data,\
-     target_knob_data, target_external_data
+    return aggregated_knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data,\
+        target_knob_data, ops_target_external_data, latency_target_external_data
 
 #Step 1
 def metric_simplification(metric_data: dict, logger: logging, args : argparse) -> list:
@@ -125,9 +139,8 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
     shuffle_indices = get_shuffle_indices(n_rows)
     shuffled_matrix = unique_matrix[shuffle_indices, :]
 
-    #shuffled_matrix = RobustScaler().fit_transform(shuffled_matrix)
+    shuffled_matrix = StandardScaler().fit_transform(shuffled_matrix)
     #shuffled_matrix = StandardScaler().fit_transform(shuffled_matrix)
-    shuffled_matrix = MinMaxScaler().fit_transform(shuffled_matrix)
 
     #FactorAnalysis
     fa_model = FactorAnalysis()
@@ -185,9 +198,7 @@ def knobsRanking(knob_data: dict, metric_data: dict, mode: str, logger: logging)
     encoded_knob_matrix = knob_matrix
 
     # standardize values in each column to N(0, 1)
-    #standardizer = RobustScaler()
-    #standardizer = StandardScaler()
-    standardizer = MinMaxScaler()
+    standardizer = StandardScaler()
     standardized_knob_matrix = standardizer.fit_transform(encoded_knob_matrix)
     standardized_metric_matrix = standardizer.fit_transform(metric_matrix)
 
@@ -210,12 +221,14 @@ def knobsRanking(knob_data: dict, metric_data: dict, mode: str, logger: logging)
 
     return consolidated_knobs
 
-
-def prepareForTraining(opt: argparse, top_k_knobs: dict, target_knobs: dict, aggregated_EM_data: dict, target_external_data: dict):
+#, Ops_target_external_data, latency_target_external_data
+def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, target_external_data, index):
+    columns=['Totals_Ops/sec','Totals_p99_Latency']
     with open("../data/workloads_info.json",'r') as f:
         workload_info = json.load(f)
 
     workloads=np.array([])
+
     target_workload = np.array([])
     for workload in range(1,len(workload_info.keys())):
         count = 3000
@@ -233,41 +246,32 @@ def prepareForTraining(opt: argparse, top_k_knobs: dict, target_knobs: dict, agg
                     count-=1
                 target_workload = np.vstack((target_workload,np.array(workload_info[str(workload)])))
                 count-=1
-
+    
     top_k_knobs = pd.DataFrame(top_k_knobs['data'], columns = top_k_knobs['columnlabels'])
     target_knobs = pd.DataFrame(target_knobs['data'], columns = target_knobs['columnlabels'])
-    aggregated_EM_data = pd.DataFrame(aggregated_EM_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+    aggregated_data = pd.DataFrame(aggregated_data['data'], columns = [columns[index]])
     workload_infos = pd.DataFrame(workloads, columns = workload_info['info'])
     target_workload = pd.DataFrame(target_workload, columns= workload_info['info'])
-    target_external_data = pd.DataFrame(target_external_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+    target_external_data = pd.DataFrame(target_external_data['data'], columns = [columns[index]])
 
-    knob_with_workload = pd.concat([top_k_knobs,workload_infos], axis=1)
+    knob_with_workload = pd.concat([top_k_knobs,workload_infos],axis=1)
     target_workload = pd.concat([target_knobs,target_workload], axis=1)
-    
 
-    X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_EM_data, test_size = 0.33, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_data, test_size = 0.33, random_state=42)
 
-    # scaler_X = RobustScaler().fit(X_train)
-    # scaler_y = RobustScaler().fit(y_train)
-
-    # scaler_X = StandardScaler().fit(X_train)
-    # scaler_y = StandardScaler().fit(y_train)
-
-    scaler_X = MinMaxScaler().fit(X_train)
-    scaler_y = MinMaxScaler().fit(y_train)
-
+    scaler_X = StandardScaler().fit(X_train)
     X_tr = scaler_X.transform(X_train).astype(np.float32)
     X_val = scaler_X.transform(X_val).astype(np.float32)
-    y_tr = scaler_y.transform(y_train).astype(np.float32)
+    X_te = scaler_X.transform(target_workload).astype(np.float32)
+    scaler_y = StandardScaler().fit(y_train)
+    y_train = scaler_y.transform(y_train).astype(np.float32)
     y_val = scaler_y.transform(y_val).astype(np.float32)
+    y_te = scaler_y.transform(target_external_data).astype(np.float32)
 
     # X_te = scaler_X.transform(X_test).astype(np.float32)
-    # y_te = scaler_y.transform(y_test).astype(np.float32)        
+    # y_te = scaler_y.transform(y_test).astype(np.float32)  
 
-    X_te = scaler_X.transform(target_workload).astype(np.float32)
-    y_te = scaler_y.transform(target_external_data).astype(np.float32)    
-
-    trainDataset = RedisDataset(X_tr, y_tr)
+    trainDataset = RedisDataset(X_tr, y_train)
     valDataset = RedisDataset(X_val, y_val)
     testDataset = RedisDataset(X_te, y_te)
 
@@ -278,16 +282,19 @@ def prepareForTraining(opt: argparse, top_k_knobs: dict, target_knobs: dict, agg
     trainDataloader = DataLoader(trainDataset, sampler = trainSampler, batch_size = 32, collate_fn = utils.collate_function)
     valDataloader = DataLoader(valDataset, sampler = valSampler, batch_size = 16, collate_fn = utils.collate_function)
     testDataloader = DataLoader(testDataset, sampler = testSampler, batch_size = 4, collate_fn = utils.collate_function)
-    if opt.model_mode == 'single':
-        model = RedisSingleDNN(opt.topk+5,2).to(DEVICE)
-        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.01)
-    elif opt.model_mode == 'twice':
-        model = RedisTwiceDNN(opt.topk+5,2).to(DEVICE)
-        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.01)
-    return model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y
+    
+    return trainDataloader, valDataloader, testDataloader, scaler_y
+
+def set_model(opt):
+    model, optimizer = dict(), dict()
+    model['Totals_Ops_sec'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
+    model['Totals_p99_Latency'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
+    optimizer['Totals_Ops_sec'] = AdamW(model['Totals_Ops_sec'].parameters(), lr = opt.lr, weight_decay = 0.01)
+    optimizer['Totals_p99_Latency'] = AdamW(model['Totals_p99_Latency'].parameters(), lr = opt.lr, weight_decay = 0.01)
+    return model, optimizer
 
 
-def sinlge_fitness_function(solution, args, model):
+def fitness_function(solution, args, model):
     solDataset = RedisDataset(solution,np.zeros((len(solution),2)))
     solDataloader = DataLoader(solDataset,shuffle=False,batch_size=args.n_pool,collate_fn=utils.collate_function)
 
@@ -304,65 +311,33 @@ def sinlge_fitness_function(solution, args, model):
                 fitness = np.vstack([fitness,fitness_batch])
     return np.array(fitness)
 
-def twice_fitness_function(solution, args, model):
-    solDataset = RedisDataset(solution,np.zeros((len(solution),2)))
-    solDataloader = DataLoader(solDataset,shuffle=False,batch_size=args.n_pool,collate_fn=utils.collate_function)
-
-    model.eval()
-
-    fitness = np.array([])
-    with torch.no_grad():
-        for _, batch in enumerate(solDataloader):
-            knobs_with_info = batch[0].to(DEVICE)
-            fitness_batch = np.array([o.detach().cpu().numpy() for o in model(knobs_with_info)])
-            #fitness_batch = model(knobs_with_info)
-            if len(fitness) == 0:
-                fitness = fitness_batch
-            else:
-                fitness = np.vstack([fitness,fitness_batch])
-
-    return np.reshape(np.squeeze(fitness,axis=-1),(args.n_pool,2))
-
 
 def prepareForGA(args,top_k_knobs):
     with open("../data/workloads_info.json",'r') as f:
         workload_info = json.load(f)
-
-    target_workload_info = np.array([])
-    for workload in range(1,len(workload_info.keys())):
-        count = 3000
-        if workload != args.target:
-            continue
-        else:
-            while count:
-                if not len(target_workload_info):
-                    target_workload_info = np.array(workload_info[str(workload)])
-                    count-=1
-                target_workload_info = np.vstack((target_workload_info,np.array(workload_info[str(workload)])))
-                count-=1
+    target_workload_info = np.array(workload_info[args.target])
 
     knobs_path = os.path.join(DATA_PATH, "configs")
+    if args.persistence == "RDB":
+        knob_data, _ = knobs.load_knobs(knobs_path)
+    elif args.persistence == "AOF":
+        _, knob_data = knobs.load_knobs(knobs_path)
 
-    knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{args.persistence.lower()}_internal_{args.target}.csv'),
-                                                            knobs_path = knobs_path,)
-
-    target_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
-                                    knobs_path = knobs_path,
-                                    metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-
-    target_default_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_default_{args.target}.csv'),
-                                    knobs_path = knobs_path,
+    target_external_data, _ = knobs.load_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
+                                    labels = knob_data['rowlabels'],
                                     metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
     
     top_k_knobs = pd.DataFrame(knob_data['data'], columns = knob_data['columnlabels'])[top_k_knobs]                                 
     target_external_data = pd.DataFrame(target_external_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-    target_workload_infos = pd.DataFrame(target_workload_info, columns = workload_info['info'])
+    target_workload_infos = pd.DataFrame([target_workload_info],columns = workload_info['info'])
 
-    knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
+    top_k_knobs['tmp'] = 1
+    target_workload_infos['tmp'] = 1
 
-    scaler_X = RobustScaler().fit(knob_with_workload)
-    scaler_y = RobustScaler().fit(target_external_data)
+    knobWithworkload = pd.merge(top_k_knobs,target_workload_infos,on=['tmp'])
+    knobWithworkload = knobWithworkload.drop('tmp',axis=1)
 
-    deafult = np.sum(np.array(target_default_external_data['data']), axis = 0)/5
+    scaler_X = MinMaxScaler().fit(knobWithworkload)
+    scaler_y = StandardScaler().fit(target_external_data)
 
-    return knob_with_workload, target_external_data, deafult, scaler_X, scaler_y
+    return knobWithworkload, target_external_data, scaler_X, scaler_y

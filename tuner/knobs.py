@@ -33,9 +33,9 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame) -> dict:
         knob_path: str = os.path.join(knobs_path, 'config'+str(m)+'.conf')
         f = open(knob_path, 'r')
         config_file: List[str] = f.readlines()
-        #knobs_list = config_file[62:]
+        knobs_list = config_file[62:]
         #TODO:: why whitespace in line 63
-        knobs_list = config_file[63:]
+        #knobs_list = config_file[63:]
         #knobs_list = config_file[config_file.index('\n')+1:]
         cnt = 1
 
@@ -111,6 +111,7 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame) -> dict:
         dict_AOF['rowlabels'] = np.array(AOF_rowlabels)
         dict_AOF['columnlabels'] = np.array(AOF_columns[0])
         knobs_list = dict_AOF
+
     return knobs_list
 
 def aggregate_datas(metric_datas: dict) -> dict:

@@ -19,7 +19,7 @@ from double_trainer import train
 from config import Config
 
 sys.path.append('../')
-from models.steps import (dataPreprocessing, metricSimplification, knobsRanking, prepareForTraining, set_model)
+from models.double_steps import (data_preprocessing, metric_simplification, knobsRanking, prepareForTraining, set_model)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type=int, default=1)
@@ -47,10 +47,10 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     logger.info("Target workload name is {}".format(opt.target))
 
-    knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data , Ops_target_external_data, latency_target_external_data = dataPreprocessing(opt.target, opt.persistence,logger)
+    knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data , target_knob_data, ops_target_external_data, latency_target_external_data = data_preprocessing(opt.target, opt.persistence, logger)
 
     logger.info("====================== Metrics_Simplification ====================\n")
-    pruned_metrics = metricSimplification(aggregated_IM_data, logger, opt)
+    pruned_metrics = metric_simplification(aggregated_IM_data, logger, opt)
     logger.info("Done pruning metrics for workload {} (# of pruned metrics: {}).\n\n""Pruned metrics: {}\n".format(opt.persistence, len(pruned_metrics), pruned_metrics))
     metric_idxs = [i for i, metric_name in enumerate(aggregated_IM_data['columnlabels']) if metric_name in pruned_metrics]
     ranked_metric_data = {
@@ -75,6 +75,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     top_k: dict = opt.topk
     top_k_knobs = utils.get_ranked_knob_data(ranked_knobs, knob_data, top_k)
+    target_knobs = utils.get_ranked_knob_data(ranked_knobs, target_knob_data, top_k)
     knob_save_path = utils.make_date_dir('./save_knobs')
     logger.info("Knob save path : {}".format(knob_save_path))
     logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
@@ -82,19 +83,17 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     #In double version
     aggregated_data = [aggregated_ops_data, aggregated_latency_data]
-    target_external_data =[Ops_target_external_data, latency_target_external_data]
+    target_external_data =[ops_target_external_data, latency_target_external_data]
 
     model, optimizer = set_model(opt)
     model_save_path = utils.make_date_dir("./model_save")
     logger.info("Model save path : {}".format(model_save_path))
     logger.info("Learning Rate : {}".format(opt.lr))
-    best_epoch = defaultdict(int)
-    best_loss = defaultdict(float)
-    best_mae = defaultdict(float)
+    best_epoch, best_loss, best_mae = defaultdict(int), defaultdict(float), defaultdict(float)
     columns=['Totals_Ops/sec','Totals_p99_Latency']
 
     for i in range(2):
-        trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, aggregated_data[i], target_external_data[i],i)
+        trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, target_knobs, aggregated_data[i], target_external_data[i],i)
         
         logger.info("====================== {} Pre-training Stage ====================\n".format(opt.model_mode))
 

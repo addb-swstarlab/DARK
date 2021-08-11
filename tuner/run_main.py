@@ -17,7 +17,7 @@ def get_runs(hyperparams_dict):
 
 if __name__ == '__main__':
     hyperparams_dict = OrderedDict(
-        target = list(range(13,19)),
+        target = list(range(1,7)),
         persistence = ['AOF'],
         db = ['redis'],
         cluster = ['k-means','ms','gmm'],
@@ -35,6 +35,6 @@ if __name__ == '__main__':
         results = grid_main(run,logger,log_dir)
         results_list.append(list(results.__dict__.values()))
     result_table = pd.DataFrame(results_list,columns=list(results.__dict__.keys()))
-    result_table.to_csv("results_grid3.csv")
+    result_table.to_csv("results_grid1.csv")
 
         

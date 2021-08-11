@@ -17,7 +17,7 @@ from trainer import train
 from config import Config
 
 sys.path.append('../')
-from models.steps import (dataPreprocessing, metricSimplification, knobsRanking, prepareForTraining, )
+from models.steps import (data_preprocessing, metric_simplification, knobsRanking, prepareForTraining, )
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type=int, default=1)
@@ -45,10 +45,10 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 
     logger.info("Target workload name is {}".format(opt.target))
 
-    knob_data, aggregated_IM_data, aggregated_EM_data, target_knob_data, target_external_data = dataPreprocessing(opt.target, opt.persistence,logger)
+    knob_data, aggregated_IM_data, aggregated_EM_data, target_knob_data, target_external_data = data_preprocessing(opt.target, opt.persistence, logger)
 
     logger.info("====================== Metrics_Simplification ====================\n")
-    pruned_metrics = metricSimplification(aggregated_IM_data, logger, opt)
+    pruned_metrics = metric_simplification(aggregated_IM_data, logger, opt)
     logger.info("Done pruning metrics for workload {} (# of pruned metrics: {}).\n\n""Pruned metrics: {}\n".format(opt.persistence, len(pruned_metrics), pruned_metrics))
     metric_idxs = [i for i, metric_name in enumerate(aggregated_IM_data['columnlabels']) if metric_name in pruned_metrics]
     ranked_metric_data = {
@@ -71,7 +71,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     logger.info("Done ranking knobs for workload {} (# ranked knobs: {}).\n\n"
                  "Ranked knobs: {}\n".format(opt.persistence, len(ranked_knobs), ranked_knobs))
 
-    top_k: dict = opt.topk
+    top_k: int = opt.topk
     top_k_knobs = utils.get_ranked_knob_data(ranked_knobs, knob_data, top_k)
     target_knobs = utils.get_ranked_knob_data(ranked_knobs, target_knob_data, top_k)
     knob_save_path = utils.make_date_dir('./save_knobs')

@@ -41,7 +41,7 @@ def get_logger(log_path='./logs'):
     return logger, os.path.join(log_path, name)
 
 
-def make_date_dir(path):
+def make_date_dir(path: str) -> str:
     """
     :param path
     :return: os.path.join(path, date_dir)
@@ -60,7 +60,7 @@ def make_date_dir(path):
     return os.path.join(path, name)
 
 
-def get_ranked_knob_data(ranked_knobs, knob_data, top_k):
+def get_ranked_knob_data(ranked_knobs: list, knob_data: dict, top_k: int) -> dict:
     '''
         ranked_knobs: sorted knobs with ranking 
                         ex. ['m3', 'm6', 'm2', ...]

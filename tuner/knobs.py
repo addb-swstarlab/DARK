@@ -8,7 +8,7 @@ from sklearn.preprocessing import LabelEncoder
 import numpy as np
 import pandas as pd
 
-def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame) -> dict:
+def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame, persistence: str) -> dict:
     '''
         input: DataFrame form (samples_num, knobs_num)
         output: Dictionary form --> RDB and AOF
@@ -21,6 +21,8 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame) -> dict:
     #config_files: List[str] = os.listdir(knobs_path)
     #config_files: List[str] = [0]*1000
     config_files = pd_metrics['Index']
+    if persistence.lower() == 'rdb':
+        config_files+=10000
 
     dict_RDB, dict_AOF = {}, {}
     RDB_datas, RDB_columns, RDB_rowlabels = [], [], []
@@ -164,27 +166,14 @@ def metrics_make_dict(pd_metrics: DataFrame, knobs_list = None):
     dict_metrics['data'] = np.array(pd_metrics.values)
     
     return dict_metrics    
-    
 
-def load_metrics(metric_path: str, labels: np.array, metrics: list=None) -> dict:
+def load_knob_metrics(metric_path: str, knobs_path: str, persistence: str=None, metrics: list=None):
     """ 
     If metrics is None, it means internal metrics.
     """
     if metrics is None:
         pd_metrics = pd.read_csv(metric_path)
-        pd_metrics, _ = metric_preprocess(pd_metrics)
-        return metrics_make_dict(pd_metrics, labels)
-    else:
-        pd_metrics = pd.read_csv(metric_path)
-        return metrics_make_dict(pd_metrics[metrics], labels)
-
-def load_knob_metrics(metric_path: str, knobs_path: str, metrics: list=None):
-    """ 
-    If metrics is None, it means internal metrics.
-    """
-    if metrics is None:
-        pd_metrics = pd.read_csv(metric_path)
-        knob_list = knobs_make_dict(knobs_path, pd_metrics)
+        knob_list = knobs_make_dict(knobs_path, pd_metrics, persistence)
         pd_metrics, _ = metric_preprocess(pd_metrics)
         return knob_list, metrics_make_dict(pd_metrics, knob_list)
     else:

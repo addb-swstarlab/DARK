@@ -1,15 +1,13 @@
 # -*- coding: utf-8 -*-
-
+import datetime
 import json
-import random
-import numpy as np
-
-import os
 import logging
 import logging.handlers
+import random
+from typing import Tuple
+import os
 
-import datetime
-
+import numpy as np
 import torch
 
 def get_logger(log_path='./logs'):
@@ -82,15 +80,16 @@ def get_ranked_knob_data(ranked_knobs: list, knob_data: dict, top_k: int) -> dic
 
     return ranked_knob_data
 
-def collate_function(examples):
+def collate_function(examples) -> Tuple[torch.Tensor, torch.Tensor]:
     knobs=[None]*len(examples)
     EMs=[None]*len(examples)
-    for i,(knob,EM) in enumerate(examples):
+
+    for i, (knob, EM) in enumerate(examples):
         knobs[i] = knob
         EMs[i] = EM
-    return torch.tensor(knobs),torch.tensor(EMs)
+    return torch.tensor(knobs), torch.tensor(EMs)
 
-def make_random_option(top_k_knobs):
+def make_random_option(top_k_knobs: list) -> dict:
     with open('../data/test_range.json','r') as f:
         data = json.load(f)
     option = {}

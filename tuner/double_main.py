@@ -80,7 +80,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     logger.info("Knob save path : {}".format(knob_save_path))
     logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
     np.save(os.path.join(knob_save_path,'knobs_{}.npy'.format(top_k)),np.array(top_k_knobs['columnlabels']))
-
+    #print(aggregated_latency_data)
     #In double version
     aggregated_data = [aggregated_ops_data, aggregated_latency_data]
     target_external_data =[ops_target_external_data, latency_target_external_data]
@@ -102,7 +102,7 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
         logger.info("\n\n[{} Best Epoch {}] Best_Loss : {} Best_MAE : {}".format(name, best_epoch[name], best_loss[name], best_mae[name]))
     
     config = Config(opt.persistence,opt.db,opt.cluster,opt.rki,opt.topk,opt.model_mode,opt.n_epochs,opt.lr)
-    config.save_results(opt.target, best_epoch['Totals_Ops/sec'], best_epoch[name], best_loss['Totals_Ops/sec'], best_loss[name], best_mae['Totals_Ops/sec'], best_mae[name], model_save_path, log_dir)
+    config.save_double_results(opt.target, best_epoch['Totals_Ops/sec'], best_epoch[name], best_loss['Totals_Ops/sec'], best_loss[name], best_mae['Totals_Ops/sec'], best_mae[name], model_save_path, log_dir, knob_save_path)
 
     return config
 

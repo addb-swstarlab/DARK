@@ -33,7 +33,7 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
-def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tuple[dict, dict, dict, dict]:
+def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tuple[dict, dict, dict, dict]:
     """
     workload{2~18} = workload datas composed of different key(workload2, workload3, ...) [N of configs, N of columnlabels]
     columnlabels  = Internal Metric names
@@ -53,7 +53,6 @@ def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tup
         'rowlabels'=array([1, 2, ..., 10000])}
     
     """
-    target_DATA_PATH = "../data/redis_data/workload{}".format(target_num)
     
     knobs_path:str = os.path.join(DATA_PATH, "configs")
     # if persistence == "RDB":
@@ -71,17 +70,19 @@ def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tup
     # len()-1 because of configs dir
     for i in range(1,len(os.listdir(DATA_PATH))):
         if target_num == i:
-            ops_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
+            ops_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}' ,f"result_{persistence.lower()}_external_{i}.csv"),
                                                 knobs_path = knobs_path,
                                                 metrics = ['Totals_Ops/sec'])
-            latency_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(target_DATA_PATH ,f"result_{persistence.lower()}_external_{i}.csv"),
+            latency_target_external_data: dict = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}' ,f"result_{persistence.lower()}_external_{i}.csv"),
                                                 knobs_path = knobs_path,
-                                                metrics = ['Totals_Ops/sec'])
+                                                metrics = ['Totals_p99_Latency'])
             target_knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
-                                                knobs_path = knobs_path,)
+                                                knobs_path = knobs_path,
+                                                persistence = persistence,)
         else:
             knob_data, internal_metric_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_internal_{i}.csv'),
-                                                            knobs_path = knobs_path,)
+                                                            knobs_path = knobs_path,
+                                                            persistence = persistence,)
             
             ops_metric_data: dict  = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{i}',f'result_{persistence.lower()}_external_{i}.csv'),
                                                 knobs_path = knobs_path,
@@ -104,9 +105,9 @@ def dataPreprocessing(target_num: int, persistence: str, logger: logging) -> Tup
     logger.info("Finish Load Internal and External Metrics Data")
 
 
-    aggregated_IM_data: dict = knobs.aggregateMetrics(internal_metric_datas)
-    aggregated_ops_data: dict = knobs.aggregateMetrics(ops_metric_datas)
-    aggregated_latency_data: dict = knobs.aggregateMetrics(latency_metric_datas)
+    aggregated_IM_data: dict = knobs.aggregate_datas(internal_metric_datas)
+    aggregated_ops_data: dict = knobs.aggregate_datas(ops_metric_datas)
+    aggregated_latency_data: dict = knobs.aggregate_datas(latency_metric_datas)
     aggregated_knob_data: dict = knobs.aggregate_datas(knob_datas)
 
     return aggregated_knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data,\
@@ -228,7 +229,6 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
         workload_info = json.load(f)
 
     workloads=np.array([])
-
     target_workload = np.array([])
     for workload in range(1,len(workload_info.keys())):
         count = 3000
@@ -253,10 +253,8 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
     workload_infos = pd.DataFrame(workloads, columns = workload_info['info'])
     target_workload = pd.DataFrame(target_workload, columns= workload_info['info'])
     target_external_data = pd.DataFrame(target_external_data['data'], columns = [columns[index]])
-
     knob_with_workload = pd.concat([top_k_knobs,workload_infos],axis=1)
     target_workload = pd.concat([target_knobs,target_workload], axis=1)
-
     X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_data, test_size = 0.33, random_state=42)
 
     scaler_X = StandardScaler().fit(X_train)

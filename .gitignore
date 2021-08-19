@@ -208,3 +208,5 @@ tuner/results_grid.csv
 /Double/tuner/save_knobs
 
 __init__.py
+
+*.npy

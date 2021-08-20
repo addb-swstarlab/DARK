@@ -292,8 +292,8 @@ def set_model(opt):
     return model, optimizer
 
 
-def fitness_function(solution, args, model):
-    solDataset = RedisDataset(solution,np.zeros((len(solution),2)))
+def double_fitness_function(solution, args, model):
+    solDataset = RedisDataset(solution,np.zeros((len(solution),1)))
     solDataloader = DataLoader(solDataset,shuffle=False,batch_size=args.n_pool,collate_fn=utils.collate_function)
 
     model.eval()
@@ -310,32 +310,54 @@ def fitness_function(solution, args, model):
     return np.array(fitness)
 
 
-def prepareForGA(args,top_k_knobs):
+def double_prepareForGA(args, top_k_knobs):
     with open("../data/workloads_info.json",'r') as f:
         workload_info = json.load(f)
-    target_workload_info = np.array(workload_info[args.target])
+
+    target_workload_info = np.array([])
+    count = 3000
+    while count:
+        if not len(target_workload_info):
+            target_workload_info = np.array(workload_info[args.target])
+            count -= 1
+        target_workload_info = np.vstack((target_workload_info,np.array(workload_info[args.target])))
+        count -= 1
 
     knobs_path = os.path.join(DATA_PATH, "configs")
-    if args.persistence == "RDB":
-        knob_data, _ = knobs.load_knobs(knobs_path)
-    elif args.persistence == "AOF":
-        _, knob_data = knobs.load_knobs(knobs_path)
+    knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_internal_{args.target}.csv'),
+                                                            knobs_path = knobs_path,
+                                                            persistence = args.persistence,)
 
-    target_external_data, _ = knobs.load_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
-                                    labels = knob_data['rowlabels'],
-                                    metrics = ['Totals_Ops/sec', 'Totals_p99_Latency'])
+    ops_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
+                                    knobs_path = knobs_path,
+                                    metrics = ['Totals_Ops/sec'])
+
+    lat_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
+                                    knobs_path = knobs_path,
+                                    metrics = ['Totals_p99_Latency'])
+
+    ops_default_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}_default.csv'),
+                                    knobs_path = knobs_path,
+                                    metrics = ['Totals_Ops/sec'])
+
+    lat_default_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}_default.csv'),
+                                    knobs_path = knobs_path,
+                                    metrics = ['Totals_p99_Latency'])
+    
     
     top_k_knobs = pd.DataFrame(knob_data['data'], columns = knob_data['columnlabels'])[top_k_knobs]                                 
-    target_external_data = pd.DataFrame(target_external_data['data'], columns = ['Totals_Ops/sec', 'Totals_p99_Latency'])
-    target_workload_infos = pd.DataFrame([target_workload_info],columns = workload_info['info'])
+    ops_external_data = pd.DataFrame(ops_external_data['data'], columns = ['Totals_Ops/sec'])
+    lat_external_data = pd.DataFrame(lat_external_data['data'], columns = ['Totals_p99_Latency'])
+    target_workload_infos = pd.DataFrame(target_workload_info, columns = workload_info['info'])
 
-    top_k_knobs['tmp'] = 1
-    target_workload_infos['tmp'] = 1
+    knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
 
-    knobWithworkload = pd.merge(top_k_knobs,target_workload_infos,on=['tmp'])
-    knobWithworkload = knobWithworkload.drop('tmp',axis=1)
+    scaler_X = StandardScaler().fit(knob_with_workload)
+    scaler_ops = StandardScaler().fit(ops_external_data)
+    scaler_lat = StandardScaler().fit(lat_external_data)
 
-    scaler_X = MinMaxScaler().fit(knobWithworkload)
-    scaler_y = StandardScaler().fit(target_external_data)
+    ops_deafult = np.sum(np.array(ops_default_external_data['data']), axis = 0)
+    lat_deafult = np.sum(np.array(lat_default_external_data['data']), axis = 0)
 
-    return knobWithworkload, target_external_data, scaler_X, scaler_y
+    return knob_with_workload, [ops_external_data, lat_external_data], [ops_deafult, lat_deafult],\
+         scaler_X, [scaler_ops, scaler_lat]

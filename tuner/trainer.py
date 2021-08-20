@@ -47,6 +47,7 @@ def train_twice_epoch(model: RedisTwiceDNN, trainDataloader: DataLoader, optimiz
     train_ACC = 0
     train_steps = 0
     model.train()
+    weight = [1,1]
     for _ , batch in enumerate(tqdm(trainDataloader, desc = "Iteration")):
         optimizer.zero_grad()
         knobs_with_info = batch[0].to(DEVICE)
@@ -56,7 +57,7 @@ def train_twice_epoch(model: RedisTwiceDNN, trainDataloader: DataLoader, optimiz
 
         loss = 0.
         for i, output in enumerate(outputs):
-            loss += F.mse_loss(output.squeeze(1), targets[:, i])
+            loss += weight[i]*F.mse_loss(output.squeeze(1), targets[:, i])
         loss.backward()
         optimizer.step()
 
@@ -99,6 +100,7 @@ def test_single(model: RedisSingleDNN, testDataloader: DataLoader, scaler_y):
     th_mse, th_mae = 0., 0.
     la_mse, la_mae = 0., 0.
     model.eval()
+    outputs = []
     with torch.no_grad():
         for _, batch in enumerate(tqdm(testDataloader, desc = "Iteration")):
             knobs_with_info = batch[0].to(DEVICE)
@@ -120,6 +122,8 @@ def test_twice(model, testDataloader, scaler_y):
     th_mse, th_mae = 0., 0.
     la_mse, la_mae = 0., 0.
     model.eval()
+    true = []
+    pred = []
     with torch.no_grad():
         for _, batch in enumerate(tqdm(testDataloader, desc = "Iteration")):
             knobs_with_info = batch[0].to(DEVICE)
@@ -135,11 +139,20 @@ def test_twice(model, testDataloader, scaler_y):
             la_mse+=l_mse.item()
             th_mae+=t_mae.item()
             la_mae+=l_mae.item()
+
+            true.extend(targets)
+            pred.extend(outputs)
             
     ops_mse = th_mse/len(testDataloader)
     lat_mse = la_mse/len(testDataloader)
     ops_mae = th_mae/len(testDataloader)
     lat_mae = la_mae/len(testDataloader)
+
+    with open("true.npy",'wb') as f:
+        np.save(f, true)
+    with open("pred.npy",'wb') as f:
+        np.save(f, pred)
+    
     return [ops_mse,lat_mse], [ops_mae,lat_mae]
 
 def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scaler_y, opt, logger):
@@ -181,7 +194,7 @@ def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scal
             best_loss = sum(test_loss)
             patience = 0
             best_epoch = epoch+1
-        if patience == 5:
+        if patience == 10:
             break
         val_losses.append(val_loss)
         test_losses.append(test_loss)

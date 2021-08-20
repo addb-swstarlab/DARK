@@ -5,10 +5,10 @@ class RedisSingleDNN(nn.Module):
         super(RedisSingleDNN, self).__init__()
         self.in_channel = in_channel
         self.out_channel = out_channel
-        self.fc1 = nn.Linear(self.in_channel,128)
-        self.fc2 = nn.Linear(128,256)
-        self.fc3 = nn.Linear(256,128)
-        self.fc4 = nn.Linear(128,self.out_channel)
+        self.fc1 = nn.Linear(self.in_channel,2*self.in_channel)
+        self.fc2 = nn.Linear(2*self.in_channel,4*self.in_channel)
+        self.fc3 = nn.Linear(4*self.in_channel,2*self.in_channel)
+        self.fc4 = nn.Linear(2*self.in_channel,self.out_channel)
         self.tanh = nn.Tanh()
 
     def forward(self,X):

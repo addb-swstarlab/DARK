@@ -243,10 +243,7 @@ def prepare_for_training(opt: argparse, top_k_knobs: dict, target_knobs: dict, a
     X_tr = scaler_X.transform(X_train).astype(np.float32)
     X_val = scaler_X.transform(X_val).astype(np.float32)
     y_tr = scaler_y.transform(y_train).astype(np.float32)
-    y_val = scaler_y.transform(y_val).astype(np.float32)
-
-    # X_te = scaler_X.transform(X_test).astype(np.float32)
-    # y_te = scaler_y.transform(y_test).astype(np.float32)        
+    y_val = scaler_y.transform(y_val).astype(np.float32)     
 
     X_te = scaler_X.transform(target_workload).astype(np.float32)
     y_te = scaler_y.transform(target_external_data).astype(np.float32)    
@@ -265,10 +262,10 @@ def prepare_for_training(opt: argparse, top_k_knobs: dict, target_knobs: dict, a
 
     if opt.model_mode == 'single':
         model = RedisSingleDNN(opt.topk+5,2).to(DEVICE)
-        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.01)
+        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.15)
     elif opt.model_mode == 'twice':
         model = RedisTwiceDNN(opt.topk+5,2).to(DEVICE)
-        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.01)
+        optimizer = AdamW(model.parameters(), lr = opt.lr, weight_decay = 0.15)
         
     return model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y
 
@@ -343,14 +340,14 @@ def prepareForGA(args, top_k_knobs):
 
     knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
 
-    # scaler_X = RobustScaler().fit(knob_with_workload)
-    # scaler_y = RobustScaler().fit(target_external_data)
+    scaler_X = RobustScaler().fit(knob_with_workload)
+    scaler_y = RobustScaler().fit(target_external_data)
 
     # scaler_X = MinMaxScaler().fit(knob_with_workload)
     # scaler_y = MinMaxScaler().fit(target_external_data)
 
-    scaler_X = StandardScaler().fit(knob_with_workload)
-    scaler_y = StandardScaler().fit(target_external_data)
+    # scaler_X = StandardScaler().fit(knob_with_workload)
+    # scaler_y = StandardScaler().fit(target_external_data)
 
     deafult = np.sum(np.array(target_default_external_data['data']), axis = 0)
 

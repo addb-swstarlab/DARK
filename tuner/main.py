@@ -17,7 +17,7 @@ from trainer import train
 from config import Config
 
 sys.path.append('../')
-from models.steps import (data_preprocessing, metric_simplification, knobsRanking, prepareForTraining, )
+from models.steps import (data_preprocessing, metric_simplification, knobs_ranking, prepare_for_training, )
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type=int, default=1)
@@ -41,53 +41,50 @@ if not os.path.exists('save_knobs'):
 
 def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     #Target workload loading
-    logger.info("====================== {} mode ====================\n".format(opt.persistence))
+    logger.info(f"====================== {opt.persistence} mode ====================\n")
 
-    logger.info("Target workload name is {}".format(opt.target))
+    logger.info(f"Target workload name is {opt.target}")
 
     knob_data, aggregated_IM_data, aggregated_EM_data, target_knob_data, target_external_data = data_preprocessing(opt.target, opt.persistence, logger)
 
     logger.info("====================== Metrics_Simplification ====================\n")
     pruned_metrics = metric_simplification(aggregated_IM_data, logger, opt)
-    logger.info("Done pruning metrics for workload {} (# of pruned metrics: {}).\n\n""Pruned metrics: {}\n".format(opt.persistence, len(pruned_metrics), pruned_metrics))
+    logger.info(f"Done pruning metrics for workload {opt.persistence} (# of pruned metrics: {len(pruned_metrics)}).\n\n"f"Pruned metrics: {pruned_metrics}\n")
     metric_idxs = [i for i, metric_name in enumerate(aggregated_IM_data['columnlabels']) if metric_name in pruned_metrics]
     ranked_metric_data = {
         'data' : aggregated_IM_data['data'][:,metric_idxs],
         'rowlabels' : copy.deepcopy(aggregated_IM_data['rowlabels']),
         'columnlabels' : [aggregated_IM_data['columnlabels'][i] for i in metric_idxs]
     }
-    """
-        For example,
-            pruned_metrics : ['allocator_rss_bytes', 'rss_overhead_bytes', 'used_memory_dataset', 'rdb_last_cow_size']
-    """
+
     ### KNOBS RANKING STAGE ###
     rank_knob_data = copy.deepcopy(knob_data)
     logger.info("====================== Run_Knobs_Ranking ====================\n")
-    logger.info("use mode = {}".format(opt.rki))
-    ranked_knobs = knobsRanking(knob_data = rank_knob_data,
+    logger.info(f"use mode = {opt.rki}")
+    ranked_knobs = knobs_ranking(knob_data = rank_knob_data,
                                 metric_data = ranked_metric_data,
                                 mode = opt.rki,
                                 logger = logger)
-    logger.info("Done ranking knobs for workload {} (# ranked knobs: {}).\n\n"
-                 "Ranked knobs: {}\n".format(opt.persistence, len(ranked_knobs), ranked_knobs))
+    logger.info(f"Done ranking knobs for workload {opt.persistence} (# ranked knobs: {len(ranked_knobs)}).\n\n"
+                 f"Ranked knobs: {ranked_knobs}\n")
 
     top_k: int = opt.topk
     top_k_knobs = utils.get_ranked_knob_data(ranked_knobs, knob_data, top_k)
     target_knobs = utils.get_ranked_knob_data(ranked_knobs, target_knob_data, top_k)
     knob_save_path = utils.make_date_dir('./save_knobs')
-    logger.info("Knob save path : {}".format(knob_save_path))
-    logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
-    np.save(os.path.join(knob_save_path,'knobs_{}.npy'.format(top_k)),np.array(top_k_knobs['columnlabels']))
+    logger.info(f"Knob save path : {knob_save_path}")
+    logger.info(f"Choose Top {top_k} knobs : {top_k_knobs['columnlabels']}")
+    np.save(os.path.join(knob_save_path,f'knobs_{top_k}.npy'),np.array(top_k_knobs['columnlabels']))
 
-    model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, target_knobs, aggregated_EM_data, target_external_data)
+    model, optimizer, trainDataloader, valDataloader, testDataloader, scaler_y = prepare_for_training(opt, top_k_knobs, target_knobs, aggregated_EM_data, target_external_data)
     
-    logger.info("====================== {} Pre-training Stage ====================\n".format(opt.model_mode))
+    logger.info(f"====================== {opt.model_mode} Pre-training Stage ====================\n")
 
     best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss, model_path = train(model, trainDataloader, valDataloader, testDataloader, optimizer, scaler_y, opt, logger)
-    logger.info("\n\n[Best Epoch {}] Best_th_Loss : {} Best_la_Loss : {} Best_th_MAE : {} Best_la_MAE : {}".format(best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss))
+    logger.info(f"\n\n[Best Epoch {best_epoch}] Best_th_Loss : {best_th_loss} Best_la_Loss : {best_la_loss} Best_th_MAE : {best_th_mae_loss} Best_la_MAE : {best_la_mae_loss}")
     
     config = Config(opt.persistence, opt.db, opt.cluster, opt.rki, opt.topk, opt.model_mode, opt.n_epochs, opt.lr)
-    config.save_results(opt.target, best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss, model_path, log_dir)
+    config.save_results(opt.target, best_epoch, best_th_loss, best_la_loss, best_th_mae_loss, best_la_mae_loss, model_path, log_dir, knob_save_path)
 
     return config
 

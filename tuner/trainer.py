@@ -47,7 +47,7 @@ def train_twice_epoch(model: RedisTwiceDNN, trainDataloader: DataLoader, optimiz
     train_ACC = 0
     train_steps = 0
     model.train()
-    weight = [1,1]
+    weight = [0.6,0.4]
     for _ , batch in enumerate(tqdm(trainDataloader, desc = "Iteration")):
         optimizer.zero_grad()
         knobs_with_info = batch[0].to(DEVICE)

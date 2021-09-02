@@ -4,6 +4,7 @@ from grid_main import grid_main
 import utils
 import os
 import pandas as pd
+
 def get_runs(hyperparams_dict):
     runs = []
     for v in itertools.product(*hyperparams_dict.values()):
@@ -17,13 +18,13 @@ def get_runs(hyperparams_dict):
 if __name__ == '__main__':
     hyperparams_dict = OrderedDict(
         target = list(range(1,7)),
-        persistence = ['RDB'],
+        persistence = ['AOF'],
         db = ['redis'],
         cluster = ['k-means','ms','gmm'],
         rki = ['lasso','RF','XGB'],
-        topk = [4,8,12,16,20],
+        topk = [4,8,12,16,20,23],
         model_mode = ['single','twice'],
-        n_epochs = [150],
+        n_epochs = [200],
         lr = [1e-6],
     )
     runs = get_runs(hyperparams_dict)

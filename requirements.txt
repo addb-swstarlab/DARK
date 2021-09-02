@@ -33,4 +33,5 @@ vine==5.0.0
 webencodings==0.5.1
 widgetsnbextension==3.5.1
 xgboost==1.4.2
-
+tqdm
+sklearn

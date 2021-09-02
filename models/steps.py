@@ -340,8 +340,8 @@ def prepareForGA(args, top_k_knobs):
 
     knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
 
-    scaler_X = RobustScaler().fit(knob_with_workload)
-    scaler_y = RobustScaler().fit(target_external_data)
+    scaler_X = StandardScaler().fit(knob_with_workload)
+    scaler_y = StandardScaler().fit(target_external_data)
 
     # scaler_X = MinMaxScaler().fit(knob_with_workload)
     # scaler_y = MinMaxScaler().fit(target_external_data)

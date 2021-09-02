@@ -19,6 +19,7 @@ from models.steps import (sinlge_fitness_function, twice_fitness_function, prepa
 from models.double_steps import (double_fitness_function, double_prepareForGA)
 from models.dnn import RedisSingleDNN, RedisTwiceDNN
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type = str, default = '1', help='Target Workload')
 parser.add_argument('--persistence', type = str, choices = ["RDB","AOF"], default = 'RDB', help='Choose Persistant Methods')
@@ -27,8 +28,8 @@ parser.add_argument('--path',type= str)
 parser.add_argument('--sk', type= str, default=' ')
 parser.add_argument('--num', type = str, nargs='+')
 parser.add_argument('--n_pool',type = int, default = 64)
-parser.add_argument('--n_generation', type=int, default=10000,)
-parser.add_argument("--model_mode", type = str, default = 'single', help = "model mode")
+parser.add_argument('--n_generation', type=int, default=8000,)
+parser.add_argument("--model_mode", type = str, default = 'double', help = "model mode")
 
 args = parser.parse_args()
 
@@ -55,15 +56,28 @@ def throughput_loss(default, predict):
 def latency_loss(default, predict):
     loss = []
     for d, p in zip(default, predict):
-        if p-d>=0:
-            loss.append(pow(2,d-p) - 1)
-        elif p-d<0:
-            loss.append(-pow(2,d-p) + 1)
+        if d-p>0:
+            loss.append(-pow(2,d-p))
+        elif d-p==0:
+            loss.append(0)
+        elif d-p<0:
+            loss.append(pow(2,d-p))
     return np.array(loss)
 
 def DRT_loss(default, predict, weight):
     losses = [throughput_loss, latency_loss]
     return sum([weight[i]*losses[i](default[:,i], predict[:,i]) for i in range(len(weight))])
+
+def throughput_new_loss(default, predict):
+    return (predict/default-1)*100
+
+def latency_new_loss(default, predict):
+    return (1-(predict/default))
+
+def DRT_new_loss(default, predict, weight):
+    losses = [throughput_new_loss, latency_new_loss]
+    return sum([weight[i]*losses[i](default[:,i], predict[:,i])*((-1)**i) for i in range(len(weight))])
+
 
 print("======================MAKE GA LOGGER====================")
 logger, log_dir = utils.get_logger(os.path.join('./GA_logs'))
@@ -95,6 +109,8 @@ def main():
         args.sk = args.path
 
     top_k_knobs = np.load(os.path.join('./save_knobs',args.sk,f"knobs_{args.topk}.npy"))
+    #import utils
+    #predict_save_path = utils.make_date_dir('./save_predicts')
 
     if args.model_mode == 'single':
         model = RedisSingleDNN(args.topk+5,2)
@@ -138,18 +154,22 @@ def main():
         current_solution_pools = [config[:args.n_pool].values for config in configs]
         targets = [np.repeat([default], args.n_pool, axis = 0) for default in defaults]
         
-    losses = [throughput_loss, latency_loss]
+    #losses = [throughput_loss, latency_loss]
+    losses = [throughput_new_loss, latency_new_loss]
     n_configs = top_k_knobs.shape[0]
     n_pool_half = args.n_pool//2
-    mutation = int(n_configs*0.7)
-
+    mutation = int(n_configs*0.5)
+    ops_predicts = []
+    lat_predicts = []
     for i in tqdm(range(args.n_generation)):
         if args.model_mode == 'single' or args.model_mode == 'twice':
             scaled_pool = scaler_X.transform(current_solution_pool)
             predicts = fitness_function(scaled_pool, args, model)
             fitness = scaler_y.inverse_transform(predicts)
+            ops_predicts.append(np.max(fitness[:,0]))
+            lat_predicts.append(np.min(fitness[:,1]))
             #idx_fitness = ATR_loss(target, fitness,[0.5,0.5])
-            idx_fitness = DRT_loss(target, fitness,[0.5,0.5])
+            idx_fitness = DRT_new_loss(target, fitness,[0.5,0.5])
             sorted_idx_fitness = np.argsort(idx_fitness)[n_pool_half:]
             best_solution_pool = current_solution_pool[sorted_idx_fitness,:]
             if i % 1000 == 999:
@@ -174,6 +194,10 @@ def main():
             scaled_pool = scaler_X.transform(current_solution_pools[index])
             predicts = fitness_function(scaled_pool, args, models[index])
             fitness = scaler_ys[index].inverse_transform(predicts)
+            if index:
+                lat_predicts.append(np.min(fitness))
+            else:
+                ops_predicts.append(np.max(fitness))
             idx_fitness = np.squeeze(losses[index](targets[index], fitness))
             #idx_fitness = ATR_loss(targets[index], fitness,[0.5])
             sorted_idx_fitness = np.argsort(idx_fitness)[n_pool_half:]
@@ -197,6 +221,8 @@ def main():
                 for k in range(len(random_knob_index)):
                     new_solution_pool[j][random_knob_index[k]] = knobs[random_knob_index[k]]
             current_solution_pools[index] = np.vstack([best_solution_pool, new_solution_pool])
+    np.save(os.path.join('save_predicts',f'{args.persistence}_{args.n_pool}_{args.target}_ops.npy'),np.array(ops_predicts))
+    np.save(os.path.join('save_predicts',f'{args.persistence}_{args.n_pool}_{args.target}_lat.npy'),np.array(lat_predicts))
     
     final_solution_pool = pd.DataFrame(best_solution_pool)
     logger.info(top_k_knobs)

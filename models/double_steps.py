@@ -256,6 +256,8 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
     knob_with_workload = pd.concat([top_k_knobs,workload_infos],axis=1)
     target_workload = pd.concat([target_knobs,target_workload], axis=1)
     X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_data, test_size = 0.33, random_state=42)
+    #X_train, X_val, y_train, y_val = train_test_split(top_k_knobs, aggregated_data, test_size = 0.33, random_state=42)
+
 
     scaler_X = StandardScaler().fit(X_train)
     X_tr = scaler_X.transform(X_train).astype(np.float32)
@@ -287,8 +289,8 @@ def set_model(opt):
     model, optimizer = dict(), dict()
     model['Totals_Ops_sec'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
     model['Totals_p99_Latency'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
-    optimizer['Totals_Ops_sec'] = AdamW(model['Totals_Ops_sec'].parameters(), lr = opt.lr, weight_decay = 0.01)
-    optimizer['Totals_p99_Latency'] = AdamW(model['Totals_p99_Latency'].parameters(), lr = opt.lr, weight_decay = 0.01)
+    optimizer['Totals_Ops_sec'] = AdamW(model['Totals_Ops_sec'].parameters(), lr = opt.lr, weight_decay = 0.15)
+    optimizer['Totals_p99_Latency'] = AdamW(model['Totals_p99_Latency'].parameters(), lr = opt.lr, weight_decay = 0.15)
     return model, optimizer
 
 

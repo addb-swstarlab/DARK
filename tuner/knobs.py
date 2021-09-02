@@ -31,7 +31,7 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame, persistence: str) ->
     AOF_datas, AOF_columns, AOF_rowlabels = [], [], []
     ISAOF = 0
     ISRDB = 1
-    for m in config_files:
+    for m in range(20000):
         flag = 0
         datas, columns = [], []
         knob_path: str = os.path.join(knobs_path, 'config'+str(m)+'.conf')

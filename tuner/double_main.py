@@ -19,7 +19,7 @@ from double_trainer import train
 from config import Config
 
 sys.path.append('../')
-from models.double_steps import (data_preprocessing, metric_simplification, knobsRanking, prepareForTraining, set_model)
+from models.double_steps import (data_preprocessing, metric_simplification, knobs_ranking, prepareForTraining, set_model)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--target', type=int, default=1)
@@ -44,11 +44,17 @@ if not os.path.exists('save_knobs'):
 def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     #Target workload loading
     logger.info("====================== {} mode ====================\n".format(opt.persistence))
-
     logger.info("Target workload name is {}".format(opt.target))
 
-    knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data , target_knob_data, ops_target_external_data, latency_target_external_data = data_preprocessing(opt.target, opt.persistence, logger)
 
+    """
+        load knob data and IM datas, EM datas.
+    """
+    ### data load ###
+    knob_data, aggregated_IM_data, aggregated_ops_data, aggregated_latency_data, target_knob_data, ops_target_external_data, latency_target_external_data = data_preprocessing(opt.target, opt.persistence, logger)
+
+
+    ### clustering ###
     logger.info("====================== Metrics_Simplification ====================\n")
     pruned_metrics = metric_simplification(aggregated_IM_data, logger, opt)
     logger.info("Done pruning metrics for workload {} (# of pruned metrics: {}).\n\n""Pruned metrics: {}\n".format(opt.persistence, len(pruned_metrics), pruned_metrics))
@@ -62,11 +68,12 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
         For example,
             pruned_metrics : ['allocator_rss_bytes', 'rss_overhead_bytes', 'used_memory_dataset', 'rdb_last_cow_size']
     """
+
     ### KNOBS RANKING STAGE ###
     rank_knob_data = copy.deepcopy(knob_data)
     logger.info("====================== Run_Knobs_Ranking ====================\n")
     logger.info("use mode = {}".format(opt.rki))
-    ranked_knobs = knobsRanking(knob_data = rank_knob_data,
+    ranked_knobs = knobs_ranking(knob_data = rank_knob_data,
                                 metric_data = ranked_metric_data,
                                 mode = opt.rki,
                                 logger = logger)
@@ -80,10 +87,10 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     logger.info("Knob save path : {}".format(knob_save_path))
     logger.info("Choose Top {} knobs : {}".format(top_k,top_k_knobs['columnlabels']))
     np.save(os.path.join(knob_save_path,'knobs_{}.npy'.format(top_k)),np.array(top_k_knobs['columnlabels']))
-    #print(aggregated_latency_data)
+ 
     #In double version
     aggregated_data = [aggregated_ops_data, aggregated_latency_data]
-    target_external_data =[ops_target_external_data, latency_target_external_data]
+    target_external_data = [ops_target_external_data, latency_target_external_data]
 
     model, optimizer = set_model(opt)
     model_save_path = utils.make_date_dir("./model_save")
@@ -92,12 +99,13 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
     best_epoch, best_loss, best_mae = defaultdict(int), defaultdict(float), defaultdict(float)
     columns=['Totals_Ops/sec','Totals_p99_Latency']
 
+    ### train dnn ###
     for i in range(2):
         trainDataloader, valDataloader, testDataloader, scaler_y = prepareForTraining(opt, top_k_knobs, target_knobs, aggregated_data[i], target_external_data[i],i)
-        
         logger.info("====================== {} Pre-training Stage ====================\n".format(opt.model_mode))
 
-        best_epoch[columns[i]], best_loss[columns[i]], best_mae[columns[i]] = train(model, trainDataloader, valDataloader,testDataloader, optimizer, scaler_y, opt, logger, model_save_path,i)
+        best_epoch[columns[i]], best_loss[columns[i]], best_mae[columns[i]] = train(model, trainDataloader, valDataloader,testDataloader, optimizer, scaler_y, opt, logger, model_save_path, i)
+
     for name in best_epoch.keys():
         logger.info("\n\n[{} Best Epoch {}] Best_Loss : {} Best_MAE : {}".format(name, best_epoch[name], best_loss[name], best_mae[name]))
     
@@ -109,11 +117,6 @@ def main(opt: argparse , logger: logging, log_dir: str) -> Config:
 if __name__ == '__main__':
     print("======================MAKE LOGGER====================")
     logger, log_dir = utils.get_logger(os.path.join('./logs'))
-    '''
-        internal_metrics, external_metrics, knobs
-        metric_data : internal metrics
-        knobs_data : configuration knobs
-    '''
     try:
         main(opt, logger, log_dir)
     except:

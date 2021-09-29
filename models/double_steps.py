@@ -132,7 +132,6 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
     # Remove any duplicate columns
     unique_matrix, unique_idxs = np.unique(nonconst_matrix, axis=1, return_index=True)
     unique_columnlabels = [nonconst_columnlabels[idx] for idx in unique_idxs]
-
     logger.info("Workload characterization ~ final data size: %s", unique_matrix.shape)
     n_rows, n_cols = unique_matrix.shape
 
@@ -141,7 +140,6 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
     shuffled_matrix = unique_matrix[shuffle_indices, :]
 
     shuffled_matrix = StandardScaler().fit_transform(shuffled_matrix)
-    #shuffled_matrix = StandardScaler().fit_transform(shuffled_matrix)
 
     #FactorAnalysis
     fa_model = FactorAnalysis()
@@ -157,9 +155,7 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
         pruned_metrics = cluster.get_closest_samples(unique_columnlabels)
         logger.info("Found optimal number of clusters: {}".format(cluster.optimK))
     elif args.cluster == 'k-means':
-        #KMeansClusters()
         kmeans_models = KMeansClusters()
-        ##TODO: Check Those Options
         kmeans_models.fit(components, min_cluster=1,
                           max_cluster=min(n_cols - 1, 20),
                           sample_labels=unique_columnlabels,
@@ -171,7 +167,6 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
 
         # Get pruned metrics, cloest samples of each cluster center
         pruned_metrics = kmeans_models.cluster_map_[gapk.optimal_num_clusters_].get_closest_samples()
-    
     # Clustering method : Mean Shift
     elif args.cluster == 'ms':
         ms = MeanShiftClustering(components)
@@ -181,8 +176,7 @@ def metric_simplification(metric_data: dict, logger: logging, args : argparse) -
 
     return pruned_metrics
 
-
-def knobsRanking(knob_data: dict, metric_data: dict, mode: str, logger: logging) -> list:
+def knobs_ranking(knob_data: dict, metric_data: dict, mode: str, logger: logging) -> list:
     """
     knob_data : will be ranked by knobs_ranking
     metric_data : pruned metric_data by metric simplification
@@ -193,7 +187,6 @@ def knobsRanking(knob_data: dict, metric_data: dict, mode: str, logger: logging)
     knob_columnlabels = knob_data['columnlabels']
 
     metric_matrix = metric_data['data']
-    #metric_columnlabels = metric_data['columnlabels']
 
     encoded_knob_columnlabels = knob_columnlabels
     encoded_knob_matrix = knob_matrix
@@ -250,26 +243,28 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
     top_k_knobs = pd.DataFrame(top_k_knobs['data'], columns = top_k_knobs['columnlabels'])
     target_knobs = pd.DataFrame(target_knobs['data'], columns = target_knobs['columnlabels'])
     aggregated_data = pd.DataFrame(aggregated_data['data'], columns = [columns[index]])
+
     workload_infos = pd.DataFrame(workloads, columns = workload_info['info'])
     target_workload = pd.DataFrame(target_workload, columns= workload_info['info'])
+
     target_external_data = pd.DataFrame(target_external_data['data'], columns = [columns[index]])
+
     knob_with_workload = pd.concat([top_k_knobs,workload_infos],axis=1)
     target_workload = pd.concat([target_knobs,target_workload], axis=1)
-    X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_data, test_size = 0.33, random_state=42)
-    #X_train, X_val, y_train, y_val = train_test_split(top_k_knobs, aggregated_data, test_size = 0.33, random_state=42)
 
+    #X_train, X_val, y_train, y_val = train_test_split(top_k_knobs, aggregated_data, test_size = 0.33, random_state=42)
+    X_train, X_val, y_train, y_val = train_test_split(knob_with_workload, aggregated_data, test_size = 0.33, random_state=42)
 
     scaler_X = StandardScaler().fit(X_train)
     X_tr = scaler_X.transform(X_train).astype(np.float32)
     X_val = scaler_X.transform(X_val).astype(np.float32)
-    X_te = scaler_X.transform(target_workload).astype(np.float32)
+    X_te = scaler_X.transform(target_knobs).astype(np.float32)
+    #X_te = scaler_X.transform(target_workload).astype(np.float32)
+
     scaler_y = StandardScaler().fit(y_train)
     y_train = scaler_y.transform(y_train).astype(np.float32)
     y_val = scaler_y.transform(y_val).astype(np.float32)
     y_te = scaler_y.transform(target_external_data).astype(np.float32)
-
-    # X_te = scaler_X.transform(X_test).astype(np.float32)
-    # y_te = scaler_y.transform(y_test).astype(np.float32)  
 
     trainDataset = RedisDataset(X_tr, y_train)
     valDataset = RedisDataset(X_val, y_val)
@@ -289,10 +284,11 @@ def set_model(opt):
     model, optimizer = dict(), dict()
     model['Totals_Ops_sec'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
     model['Totals_p99_Latency'] = RedisSingleDNN(opt.topk+5,1).to(DEVICE)
+    # model['Totals_Ops_sec'] = RedisSingleDNN(opt.topk,1).to(DEVICE)
+    # model['Totals_p99_Latency'] = RedisSingleDNN(opt.topk,1).to(DEVICE)
     optimizer['Totals_Ops_sec'] = AdamW(model['Totals_Ops_sec'].parameters(), lr = opt.lr, weight_decay = 0.15)
     optimizer['Totals_p99_Latency'] = AdamW(model['Totals_p99_Latency'].parameters(), lr = opt.lr, weight_decay = 0.15)
     return model, optimizer
-
 
 def double_fitness_function(solution, args, model):
     solDataset = RedisDataset(solution,np.zeros((len(solution),1)))
@@ -311,7 +307,6 @@ def double_fitness_function(solution, args, model):
                 fitness = np.vstack([fitness,fitness_batch])
     return np.array(fitness)
 
-
 def double_prepareForGA(args, top_k_knobs):
     with open("../data/workloads_info.json",'r') as f:
         workload_info = json.load(f)
@@ -325,35 +320,38 @@ def double_prepareForGA(args, top_k_knobs):
         target_workload_info = np.vstack((target_workload_info,np.array(workload_info[args.target])))
         count -= 1
 
+    #knob data
     knobs_path = os.path.join(DATA_PATH, "configs")
     knob_data, _ = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_internal_{args.target}.csv'),
                                                             knobs_path = knobs_path,
                                                             persistence = args.persistence,)
-
+    
+    #EM data
     ops_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
                                     knobs_path = knobs_path,
                                     metrics = ['Totals_Ops/sec'])
-
     lat_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}.csv'),
                                     knobs_path = knobs_path,
                                     metrics = ['Totals_p99_Latency'])
 
+    #default data
     ops_default_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}_default.csv'),
                                     knobs_path = knobs_path,
                                     metrics = ['Totals_Ops/sec'])
-
     lat_default_external_data = knobs.load_knob_metrics(metric_path = os.path.join(DATA_PATH,f'workload{args.target}',f'result_{args.persistence.lower()}_external_{args.target}_default.csv'),
                                     knobs_path = knobs_path,
                                     metrics = ['Totals_p99_Latency'])
-    
-    
-    top_k_knobs = pd.DataFrame(knob_data['data'], columns = knob_data['columnlabels'])[top_k_knobs]                                 
+     
+    top_k_knobs = pd.DataFrame(knob_data['data'], columns = knob_data['columnlabels'])[top_k_knobs]
+
     ops_external_data = pd.DataFrame(ops_external_data['data'], columns = ['Totals_Ops/sec'])
     lat_external_data = pd.DataFrame(lat_external_data['data'], columns = ['Totals_p99_Latency'])
+
     target_workload_infos = pd.DataFrame(target_workload_info, columns = workload_info['info'])
 
     knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
 
+    #scaler_X = StandardScaler().fit(top_k_knobs)
     scaler_X = StandardScaler().fit(knob_with_workload)
     scaler_ops = StandardScaler().fit(ops_external_data)
     scaler_lat = StandardScaler().fit(lat_external_data)
@@ -361,5 +359,5 @@ def double_prepareForGA(args, top_k_knobs):
     ops_deafult = np.sum(np.array(ops_default_external_data['data']), axis = 0)
     lat_deafult = np.sum(np.array(lat_default_external_data['data']), axis = 0)
 
-    return knob_with_workload, [ops_external_data, lat_external_data], [ops_deafult, lat_deafult],\
-         scaler_X, [scaler_ops, scaler_lat]
+    #return top_k_knobs, [ops_external_data, lat_external_data], [ops_deafult, lat_deafult], scaler_X, [scaler_ops, scaler_lat]
+    return knob_with_workload, [ops_external_data, lat_external_data], [ops_deafult, lat_deafult], scaler_X, [scaler_ops, scaler_lat]

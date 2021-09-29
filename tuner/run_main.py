@@ -17,15 +17,15 @@ def get_runs(hyperparams_dict):
 
 if __name__ == '__main__':
     hyperparams_dict = OrderedDict(
-        target = list(range(1,7)),
+        target = list(range(1,19)),
         persistence = ['AOF'],
         db = ['redis'],
-        cluster = ['k-means','ms','gmm'],
-        rki = ['lasso','RF','XGB'],
-        topk = [4,8,12,16,20,23],
-        model_mode = ['single','twice'],
+        cluster = ['ms'],
+        rki = ['RF'],
+        topk = [12],
+        model_mode = ['double'],
         n_epochs = [200],
-        lr = [1e-6],
+        lr = [1e-5],
     )
     runs = get_runs(hyperparams_dict)
     results_list = []
@@ -35,6 +35,6 @@ if __name__ == '__main__':
         results = grid_main(run,logger,log_dir)
         results_list.append(list(results.__dict__.values()))
     result_table = pd.DataFrame(results_list,columns=list(results.__dict__.keys()))
-    result_table.to_csv("results_grid1.csv")
+    result_table.to_csv("results_grid_aof.csv")
 
         

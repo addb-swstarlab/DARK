@@ -67,7 +67,7 @@ def test_double(model, testDataloader, scaler_y):
     return test_loss, test_mae
 
 
-def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scaler_y, opt, logger,model_save_path, index):
+def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scaler_y, opt, logger, model_save_path, index):
     val_losses = []
     test_losses = []
 
@@ -78,10 +78,6 @@ def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scal
     best_loss = float('inf')
     best_epoch = 0
     patience = 0
-
-    #scheduler = LambdaLR(optimizer=optimizer,lr_lambda=lambda epoch:0.95**epoch,last_epoch=-1,verbose=False)
-    best_epoch = 0.
-    best_loss= float('inf')
     best_mae = 0.
     for i, model in enumerate(model.items()):
         if i!=index:
@@ -91,14 +87,14 @@ def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scal
         tmp_val_losses = []
         tmp_test_losses = []
         for epoch in range(int(opt.n_epochs)):
-            patience +=1
+            patience += 1
             logger.info("====================================Train====================================")
-            train_loss, _ = train_epoch(model,trainDataloader,optimizer[model_name])
-            logger.info("[Train Epoch {}] train Loss : {}".format(epoch+1,train_loss))
+            train_loss, _ = train_epoch(model, trainDataloader, optimizer[model_name])
+            logger.info("[Train Epoch {}] train Loss : {}".format(epoch+1, train_loss))
 
             logger.info("====================================Val====================================")
             val_loss, _ = eval_epoch(model,valDataloader)
-            logger.info("[Eval Epoch {}] val Loss : {}".format(epoch+1,val_loss))
+            logger.info("[Eval Epoch {}] val Loss : {}".format(epoch+1, val_loss))
 
             logger.info("====================================Test====================================")
             test_loss, test_mae = test(model, testDataloader, scaler_y)
@@ -107,10 +103,10 @@ def train(model, trainDataloader, valDataloader, testDataloader, optimizer, scal
 
             if test_loss < best_loss:
                 #double needs save naming
-                torch.save(model.state_dict(),os.path.join(model_save_path,"{}_{}.pt".format(model_name,str(epoch+1))))
+                torch.save(model.state_dict(), os.path.join(model_save_path, "{}_{}.pt".format(model_name, str(epoch+1))))
                 best_loss = test_loss
                 best_mae = test_mae
-                best_epoch = epoch+1
+                best_epoch = (epoch + 1)
                 patience = 0
             if patience == 5:
                 break

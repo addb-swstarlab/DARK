@@ -1,4 +1,4 @@
-from main import main
+from double_main import main
 import logging
 
 class ObjectView(object):
@@ -8,7 +8,7 @@ class ObjectView(object):
 def grid_main(config_dict,logger,log_dir):
     try:
         config = ObjectView(config_dict)
-        results = main(config,logger,log_dir)
+        results = main(config, logger, log_dir)
     except:
         logger.exception("ERROR")
     finally:

@@ -29,7 +29,7 @@ parser.add_argument('--path',type= str)
 parser.add_argument('--sk', type= str, default=' ')
 parser.add_argument('--num', type = str, nargs='+')
 parser.add_argument('--n_pool',type = int, default = 64)
-parser.add_argument('--n_generation', type=int, default=8000,)
+parser.add_argument('--n_generation', type=int, default=4000,)
 parser.add_argument("--model_mode", type = str, default = 'double', help = "model mode")
 
 args = parser.parse_args()
@@ -173,7 +173,9 @@ def main():
 
         elif args.model_mode == 'double':
             #fitness function
-            index = i%2
+            #index = i%2 # multi object
+            index = 0 # throughput (single object)
+            #index = 1 # latency (single object)
             scaled_pool = scaler_X.transform(current_solution_pools[index])
             predicts = fitness_function(scaled_pool, args, models[index])
             fitness = scaler_ys[index].inverse_transform(predicts)

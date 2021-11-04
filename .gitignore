@@ -200,13 +200,12 @@ tuner/results_grid.csv
 /tuner/*.png
 
 /tuner/GA_config
-
-/Double/data
-
-/Double/tuner/model_save
-/Double/tuner/log
-/Double/tuner/save_knobs
+/tuner/predict_csv
 
 __init__.py
 
 *.npy
+
+*.zip
+
+/data2

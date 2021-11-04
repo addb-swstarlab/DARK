@@ -18,7 +18,7 @@ def get_runs(hyperparams_dict):
 if __name__ == '__main__':
     hyperparams_dict = OrderedDict(
         target = list(range(1,19)),
-        persistence = ['AOF'],
+        persistence = ['RDB'],
         db = ['redis'],
         cluster = ['ms'],
         rki = ['RF'],

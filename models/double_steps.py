@@ -26,7 +26,8 @@ from torch.utils.data import DataLoader,RandomSampler
 import utils
 import knobs
 
-DATA_PATH = "../data/redis_data"
+#DATA_PATH = "../data/redis_data"
+DATA_PATH = "../data2/redis_data"
 DEVICE = torch.device("cpu")
 
 import warnings
@@ -53,8 +54,9 @@ def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tu
         'rowlabels'=array([1, 2, ..., 10000])}
     
     """
-    
+
     knobs_path:str = os.path.join(DATA_PATH, "configs")
+    knobs_path:str = os.path.join(DATA_PATH, "configs", "configfile")
     # if persistence == "RDB":
     #     knob_data, _ = knobs.load_knobs(knobs_path)
     # elif persistence == "AOF":
@@ -66,7 +68,7 @@ def data_preprocessing(target_num: int, persistence: str, logger: logging) -> Tu
     ops_metric_datas = {}
     latency_metric_datas = {}
     knob_datas = {}
-
+    
     # len()-1 because of configs dir
     for i in range(1,len(os.listdir(DATA_PATH))):
         if target_num == i:
@@ -218,13 +220,15 @@ def knobs_ranking(knob_data: dict, metric_data: dict, mode: str, logger: logging
 #, Ops_target_external_data, latency_target_external_data
 def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, target_external_data, index):
     columns=['Totals_Ops/sec','Totals_p99_Latency']
-    with open("../data/workloads_info.json",'r') as f:
+    #with open("../data/workloads_info.json",'r') as f:
+    with open("../data2/workloads_info.json",'r') as f:
         workload_info = json.load(f)
 
     workloads=np.array([])
     target_workload = np.array([])
     for workload in range(1,len(workload_info.keys())):
-        count = 3000
+        #count = 3000
+        count = 5000
         if workload != opt.target:
             while count:
                 if not len(workloads):
@@ -258,8 +262,8 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
     scaler_X = StandardScaler().fit(X_train)
     X_tr = scaler_X.transform(X_train).astype(np.float32)
     X_val = scaler_X.transform(X_val).astype(np.float32)
-    X_te = scaler_X.transform(target_knobs).astype(np.float32)
-    #X_te = scaler_X.transform(target_workload).astype(np.float32)
+    #X_te = scaler_X.transform(target_knobs).astype(np.float32)
+    X_te = scaler_X.transform(target_workload).astype(np.float32)
 
     scaler_y = StandardScaler().fit(y_train)
     y_train = scaler_y.transform(y_train).astype(np.float32)
@@ -276,7 +280,7 @@ def prepareForTraining(opt, top_k_knobs, target_knobs: dict, aggregated_data, ta
 
     trainDataloader = DataLoader(trainDataset, sampler = trainSampler, batch_size = 32, collate_fn = utils.collate_function)
     valDataloader = DataLoader(valDataset, sampler = valSampler, batch_size = 16, collate_fn = utils.collate_function)
-    testDataloader = DataLoader(testDataset, sampler = testSampler, batch_size = 4, collate_fn = utils.collate_function)
+    testDataloader = DataLoader(testDataset, sampler = testSampler, batch_size = 1, collate_fn = utils.collate_function)
     
     return trainDataloader, valDataloader, testDataloader, scaler_y
 
@@ -350,7 +354,7 @@ def double_prepareForGA(args, top_k_knobs):
     target_workload_infos = pd.DataFrame(target_workload_info, columns = workload_info['info'])
 
     knob_with_workload = pd.concat([top_k_knobs, target_workload_infos], axis=1)
-
+    
     #scaler_X = StandardScaler().fit(top_k_knobs)
     scaler_X = StandardScaler().fit(knob_with_workload)
     scaler_ops = StandardScaler().fit(ops_external_data)

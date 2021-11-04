@@ -173,8 +173,8 @@ def main():
 
         elif args.model_mode == 'double':
             #fitness function
-            #index = i%2 # multi object
-            index = 0 # throughput (single object)
+            index = i%2 # multi object
+            #index = 0 # throughput (single object)
             #index = 1 # latency (single object)
             scaled_pool = scaler_X.transform(current_solution_pools[index])
             predicts = fitness_function(scaled_pool, args, models[index])

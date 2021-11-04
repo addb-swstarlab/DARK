@@ -37,7 +37,8 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame, persistence: str) ->
         knob_path: str = os.path.join(knobs_path, 'config'+str(m)+'.conf')
         f = open(knob_path, 'r')
         config_file: List[str] = f.readlines()
-        knobs_list = config_file[62:]
+        #knobs_list = config_file[62:]
+        knobs_list = config_file[1294:]
         #TODO:: why whitespace in line 63
         #knobs_list = config_file[63:]
         #knobs_list = config_file[config_file.index('\n')+1:]
@@ -72,18 +73,18 @@ def knobs_make_dict(knobs_path: str, pd_metrics: DataFrame, persistence: str) ->
                 flag = ISRDB
 
         # add active knobs when activedefrag is on annotation.
-        if "activedefrag" not in columns:
-            columns.append("activedefrag")
-            # "0" means no
-            datas.append("0")
-            columns.append("active-defrag-threshold-lower")
-            datas.append(10)
-            columns.append("active-defrag-threshold-upper")
-            datas.append(100)
-            columns.append("active-defrag-cycle-min")
-            datas.append(5)
-            columns.append("active-defrag-cycle-max")
-            datas.append(75)
+        # if "activedefrag" not in columns:
+        #     columns.append("activedefrag")
+        #     # "0" means no
+        #     datas.append("0")
+        #     columns.append("active-defrag-threshold-lower")
+        #     datas.append(10)
+        #     columns.append("active-defrag-threshold-upper")
+        #     datas.append(100)
+        #     columns.append("active-defrag-cycle-min")
+        #     datas.append(5)
+        #     columns.append("active-defrag-cycle-max")
+        #     datas.append(75)
 
         def str2Numbers(str: str)-> Any:
             try:
